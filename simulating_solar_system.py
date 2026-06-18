@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm # REMOVE
+from tqdm import tqdm  # REMOVE
 
 from astropy.time import Time
 from astropy.coordinates import solar_system_ephemeris
@@ -30,7 +30,6 @@ bodies_with_masses = {
 # Question 1: Simulating the solar system
 
 
-
 def get_initial_conditions(time: Time) -> tuple[np.ndarray, np.ndarray]:
     """
     Generate initial conditions for the Solar System using get_body_barycentric_posvel.
@@ -56,20 +55,17 @@ def get_initial_conditions(time: Time) -> tuple[np.ndarray, np.ndarray]:
     for i, planet in enumerate(bodies_with_masses.keys()):
 
         # Load the position and velocity of the Sun the planets
-        with solar_system_ephemeris.set("jpl"):
+        with solar_system_ephemeris.set("builtin"):
             position, velocity = get_body_barycentric_posvel(planet, time)
-        
+
         # Convert position and velicoty to units of AU and AU/day
         positions[i] = position.xyz.to_value(u.AU)
         velocities[i] = velocity.xyz.to_value(u.AU / u.yr)
-    
+
     return positions, velocities
 
 
-def compute_accelerations(
-    positions: np.ndarray,
-    masses: np.ndarray
-) -> np.ndarray:
+def compute_accelerations(positions: np.ndarray, masses: np.ndarray) -> np.ndarray:
     """
     Compute the accelerations using equation 1 in the hand in.
 
@@ -85,17 +81,18 @@ def compute_accelerations(
     accelerations : ndarray
         Accelerations of all bodies, shape (N_bodies, 3)
     """
+
     def norm(x):
         return np.sqrt(np.sum(x**2, axis=1))[:, None]
 
     N_bodies = len(masses)
     acceleration = np.zeros((N_bodies, 3))
     for i in range(N_bodies):
-        r = positions[i+1:] - positions[i]
+        r = positions[i + 1 :] - positions[i]
         norm_r = norm(r)
-        force = - G * r / (norm_r**3)
-        acceleration[i] -= np.sum(masses[i+1:, None] * force, axis=0)
-        acceleration[i+1:] += force * masses[i]
+        force = -G * r / (norm_r**3)
+        acceleration[i] -= np.sum(masses[i + 1 :, None] * force, axis=0)
+        acceleration[i + 1 :] += force * masses[i]
     return acceleration
 
 
@@ -133,14 +130,16 @@ def leapfrog_integrator(
     velocities = np.zeros((N_steps + 1, len(masses), 3))
 
     positions[0] = positions_init
-    velocities[0] = velocities_init + 0.5 * dt * compute_accelerations(positions_init, masses=masses)
+    velocities[0] = velocities_init + 0.5 * dt * compute_accelerations(
+        positions_init, masses=masses
+    )
     for step in tqdm(range(N_steps)):
         positions[step + 1] = positions[step] + dt * velocities[step]
-        velocities[step + 1] = velocities[step] + dt * compute_accelerations(positions[step + 1], masses=masses)
+        velocities[step + 1] = velocities[step] + dt * compute_accelerations(
+            positions[step + 1], masses=masses
+        )
 
-    return positions, np.zeros(
-        (N_steps + 1, len(masses), 3)
-    )
+    return positions, np.zeros((N_steps + 1, len(masses), 3))
 
 
 def another_integrator(
@@ -173,20 +172,22 @@ def another_integrator(
     velocities : ndarray
         Velocities at all time steps, shape (N_steps + 1, N_bodies, 3)
     """
+
     def f(pos_vel):
         return np.array([pos_vel[1], compute_accelerations(pos_vel[0], masses=masses)])
+
     positions = np.zeros((N_steps + 1, len(masses), 3))
     velocities = np.zeros((N_steps + 1, len(masses), 3))
     positions[0] = positions_init
     velocities[0] = velocities_init
     current_position_velocity = np.array([positions_init, velocities_init])
     for step in tqdm(range(N_steps)):
-        k_1 = dt*f(current_position_velocity)
-        k_2 = dt*f(current_position_velocity+.5*k_1)
-        k_3 = dt*f(current_position_velocity+.5*k_2)
-        k_4 = dt*f(current_position_velocity+k_3)
-        current_position_velocity += (k_1+2*k_2+2*k_3+k_4)/6
-        positions[step+1], velocities[step+1] = current_position_velocity
+        k_1 = dt * f(current_position_velocity)
+        k_2 = dt * f(current_position_velocity + 0.5 * k_1)
+        k_3 = dt * f(current_position_velocity + 0.5 * k_2)
+        k_4 = dt * f(current_position_velocity + k_3)
+        current_position_velocity += (k_1 + 2 * k_2 + 2 * k_3 + k_4) / 6
+        positions[step + 1], velocities[step + 1] = current_position_velocity
     return positions, velocities
 
 
@@ -334,9 +335,9 @@ def plot_x_difference_vs_time(
     x_b, y_b, z_b = positions_b.T
     fig, ax = plt.subplots(figsize=(12, 5), constrained_layout=True)
     for i, obj in enumerate(np.flip(body_names)):
-        ax.plot(times, np.abs((x_b[i, :] - x_a[i, :])/x_a[i, :]), label=obj)
+        ax.plot(times, np.abs((x_b[i, :] - x_a[i, :]) / x_a[i, :]), label=obj)
     ax.set(xlabel="Time [yr]", ylabel="Relative Difference [AU]")
-    ax.set_yscale('log')
+    ax.set_yscale("log")
     plt.legend(loc=(1.05, 0))
     plt.savefig(os.path.join(output_dir, filename), dpi=300)
     plt.close(fig)

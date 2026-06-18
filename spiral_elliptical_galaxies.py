@@ -22,18 +22,20 @@ def load_and_prepare_data(filename):
     """
     data = np.loadtxt(filename)
     features = data[:, :-1]
-    features = (features - np.mean(features, axis=0))/np.std(features, axis=0)
+    features = (features - np.mean(features, axis=0)) / np.std(features, axis=0)
     labels = data[:, -1]
     return features, labels
 
 
 # Make your own implementation of logistic regression
 def hypothesis(features, theta):
-    z =  theta[:-1] @ features.T + theta[-1]
+    z = theta[:-1] @ features.T + theta[-1]
     return 1 / (1 + np.exp(-z))
 
+
 def logistic_regression(
-    features, labels, feature_combinations, learning_rate=0.1, n_iterations=30):
+    features, labels, feature_combinations, learning_rate=0.1, n_iterations=30
+):
     """
     This function should select a chosen set
     of input feature columns, then fit a logistic regression model to classify
@@ -64,7 +66,7 @@ def logistic_regression(
 
     theta_values : list of ndarray
         Best-fit parameters for each feature combination"""
-    
+
     def loss_function(features, theta, y):
         h = hypothesis(features, theta)
         return -np.sum(y * np.log(h) + (1 - y) * np.log(1 - h)) / len(y)
@@ -72,15 +74,19 @@ def logistic_regression(
     def loss_function_grad(features, theta, labels, l=0):
         h = hypothesis(features, theta)
         features_and_constant = np.vstack((features.T, np.ones(features.shape[0])))
-        return features_and_constant @ (h-labels) / len(labels) + 2 * l * np.sum(theta)
+        return features_and_constant @ (h - labels) / len(labels) + 2 * l * np.sum(
+            theta
+        )
 
-    theta_values =[]
+    theta_values = []
     loss = np.zeros((n_iterations, len(feature_combinations)))
     for j, combination in enumerate(feature_combinations):
         feature_selection = features[:, [*combination]]
         theta = np.ones(feature_selection.shape[1] + 1)
         for i in range(n_iterations):
-            delta_theta = learning_rate*loss_function_grad(feature_selection, theta, labels)
+            delta_theta = learning_rate * loss_function_grad(
+                feature_selection, theta, labels
+            )
             theta -= delta_theta
             loss[i, j] = loss_function(feature_selection, theta, labels)
         theta_values.append(theta)
@@ -123,10 +129,10 @@ def test_logistic_regression(features, labels, theta, feature_columns, output_di
     f1_score : float
     """
     predictions = np.round(hypothesis(features[:, feature_columns], theta))
-    true_positive = np.sum((predictions == 1) & (labels==1))
-    false_positive = np.sum((predictions == 1) & (labels==0))
-    true_negative = np.sum((predictions == 0) & (labels==0))
-    false_negative = np.sum((predictions == 0) & (labels==1))
+    true_positive = np.sum((predictions == 1) & (labels == 1))
+    false_positive = np.sum((predictions == 1) & (labels == 0))
+    true_negative = np.sum((predictions == 0) & (labels == 0))
+    false_negative = np.sum((predictions == 0) & (labels == 1))
 
     precision = true_positive / (true_positive + false_positive)
     recall = true_positive / (true_positive + false_negative)
@@ -176,12 +182,14 @@ def main() -> None:
 
     # Problem 3.b
     feature_combinations = [*itertools.combinations(np.arange(0, 4), 2)]
-    cost_function, theta_values = logistic_regression(features, labels, feature_combinations, n_iterations=100000, learning_rate=1e-3)
+    cost_function, theta_values = logistic_regression(
+        features, labels, feature_combinations, n_iterations=100000, learning_rate=1e-3
+    )
     fig, ax = plt.subplots(1, 1, figsize=(10, 5), constrained_layout=True)
     for i, combination in enumerate(feature_combinations):
-        label = f'Feature {combination[0]+1}'
+        label = f"Feature {combination[0]+1}"
         for other in combination[1:]:
-            label += f'+{other+1}'
+            label += f"+{other+1}"
         ax.plot(np.arange(0, len(cost_function)), cost_function[:, i], label=label)
     # ...........
     ax.set(xlabel="Number of iterations", ylabel="Cost function")
@@ -213,10 +221,15 @@ def main() -> None:
         ax[plot_idx[i][0], plot_idx[i][1]].scatter(
             features[:, comb[0]], features[:, comb[1]], c=labels
         )
-        xlim, ylim = ax[plot_idx[i][0], plot_idx[i][1]].get_xlim(), ax[plot_idx[i][0], plot_idx[i][1]].get_ylim()
+        xlim, ylim = (
+            ax[plot_idx[i][0], plot_idx[i][1]].get_xlim(),
+            ax[plot_idx[i][0], plot_idx[i][1]].get_ylim(),
+        )
         theta = theta_values[i]
         print(theta)
-        ax[plot_idx[i][0], plot_idx[i][1]].plot(xlim, -(theta[0] * np.array(xlim) + theta[-1]) / theta[1], "k--")
+        ax[plot_idx[i][0], plot_idx[i][1]].plot(
+            xlim, -(theta[0] * np.array(xlim) + theta[-1]) / theta[1], "k--"
+        )
         ax[plot_idx[i][0], plot_idx[i][1]].set(
             xlabel=names[comb[0]], ylabel=names[comb[1]], xlim=xlim, ylim=ylim
         )

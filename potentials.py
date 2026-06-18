@@ -41,164 +41,192 @@ class Octree_Node:
     def __init__(
         self,
         center_position,
+        size,
         depth,
         index,
-        CoM,
         particles,
+        all_particles,
         children=None,
-    ): # note: the fewer of these you keep, the better! these are just examples
+    ):  # note: the fewer of these you keep, the better! these are just examples
         self.center_position = center_position
+        self.size = size
         self.depth = depth
         self.index = index
-        self.CoM = CoM
         self.particles = particles
+        self.all_particles = all_particles
         self.children = children
 
         if particles is None:
             self.mass = np.float32(0.0)
+            self.CoM = center_position
         else:
             self.mass = np.float32(len(particles)) * mp
+            self.CoM = np.mean(all_particles[particles], axis=0)
 
+    def build_octree(
+        self,
+        max_depth=7,
+    ):
+        """
+        Build an octree recursively.
 
-def build_octree(
-    particle_positions,
-    center_position,
-    index,
-    box_size,
-    depth=0,
-    max_depth=7,
-):
-    """
-    Build an octree recursively.
+        Parameters
+        ----------
+        particle_positions : ndarray
+            Particle positions inside the current node, shape (N_node, 3)
+        center_position : ndarray
+            Geometrical center of the current node, shape (3,)
+        index : tuple
+            Integer index of this node at the current depth, (ix, iy, iz)
+        box_size : float
+            Side length of the current node
+        depth : int
+            Current octree depth
+        max_depth : int
+            Maximum tree depth
 
-    Parameters
-    ----------
-    particle_positions : ndarray
-        Particle positions inside the current node, shape (N_node, 3)
-    center_position : ndarray
-        Geometrical center of the current node, shape (3,)
-    index : tuple
-        Integer index of this node at the current depth, (ix, iy, iz)
-    box_size : float
-        Side length of the current node
-    depth : int
-        Current octree depth
-    max_depth : int
-        Maximum tree depth
+        Returns
+        -------
+        node : Octree_Node
+            Current octree node
+        """
+        if (
+            self.particles is None
+            or len(self.particles) == 0
+            or self.depth >= max_depth
+        ):
+            return
+        if len(self.particles) <= 1:
+            return
+        cx, cy, cz = self.center_position
+        pos = self.all_particles[self.particles]
+        right = pos[:, 0] >= cx
+        top = pos[:, 1] >= cy
+        front = pos[:, 2] >= cz
+        self.children = np.empty((2, 2, 2), dtype=object)
+        ix, iy, iz = self.index
+        for i in range(2):
+            for j in range(2):
+                for k in range(2):
+                    mask = (right == i) & (top == j) & (front == k)
+                    child_particles = self.particles[mask]
+                    child_center = self.center_position + (
+                        np.array([i, j, k], dtype=np.float32) - 0.5
+                    ) * (self.size / 2)
+                    self.children[i, j, k] = Octree_Node(
+                        child_center,
+                        size=self.size / 2,
+                        depth=self.depth + 1,
+                        index=(2 * ix + i, 2 * iy + j, 2 * iz + k),
+                        particles=child_particles,
+                        all_particles=self.all_particles,
+                    )
+        for child in self.children.flatten():
+            child.build_octree(max_depth)
+        # If node contains no particles
+        # mass should be zero, CoM can be set equal to center_position
+        # and children should be None
 
-    Returns
-    -------
-    node : Octree_Node
-        Current octree node
-    """
+        # if this is a leaf node, return the node without children
 
-    # If node contains no particles
-    # mass should be zero, CoM can be set equal to center_position
-    # and children should be None
+        # compute depth, index, mass, CoM, and children
+        # For the bonus question, store the particle indices
 
-    # if this is a leaf node, return the node without children
+        # split the node into 8 child nodes
+        # Each child has half the side length of the parent
+        #  compute the child index
+        # If the parent index is (ix, iy, iz), then the child index is
+        # (2*ix + offest_x, 2*iy + offest_y, 2*iz + offest_z)
 
-    # compute depth, index, mass, CoM, and children
-    # For the bonus question, store the particle indices
+        #  select particles that lie inside this child node
 
-    # split the node into 8 child nodes
-    # Each child has half the side length of the parent
-    #  compute the child index
-    # If the parent index is (ix, iy, iz), then the child index is
-    # (2*ix + offest_x, 2*iy + offest_y, 2*iz + offest_z)
+        # recursively call build on this child
 
-    #  select particles that lie inside this child node
+    def get_node_at_level(
+        self,
+        target_level,
+        target_index,
+    ):
+        """
+        Traverse the octree and return a node at a given level and index
 
-    # recursively call build on this child
+        Parameters
+        ----------
+        node : Octree_Node
+            Current node
+        target_level : int
+            Level to reach
+        target_index : tuple
+            Index of the target node at target_level, (ix, iy, iz)
 
-    return None
+        Returns
+        -------
+        node : Octree_Node or None
+            Node at the requested level and index
+        """
+        node = self
 
+        while node.depth < target_level:
+            ox = target_index[0] & 1
+            oy = target_index[1] & 1
+            oz = target_index[2] & 1
 
-# Octree_Node(
-#     center_position=center_position,
-#     depth=depth,
-#     index=index,
-#     CoM=CoM,
-#     particles=None,
-#     children=children,
-# )
+            if node.children is None:
+                return None
 
+            node = node.children[ox, oy, oz]
 
-def get_node_at_level(
-    node,
-    target_level,
-    target_index,
-):
-    """
-    Traverse the octree and return a node at a given level and index
+            target_index = (
+                target_index[0] >> 1,
+                target_index[1] >> 1,
+                target_index[2] >> 1,
+            )
 
-    Parameters
-    ----------
-    node : Octree_Node
-        Current node
-    target_level : int
-        Level to reach
-    target_index : tuple
-        Index of the target node at target_level, (ix, iy, iz)
+        return node
 
-    Returns
-    -------
-    node : Octree_Node or None
-        Node at the requested level and index
-    """
+    def fill_massmap_from_octree(
+        self,
+        level,
+        massmap,
+    ):
+        """
+        Fill the four requested x-slices from the octree
 
-    # if the current node is already at the requested level,
-    # check whether the index matches and return the node
+        Parameters
+        ----------
+        root : Octree_Node
+            Root of the octree
+        level : int
+            Octree level to plot
+        massmap : ndarray
+            Mass map, shape (4, pixels, pixels)
 
-    # work out which child recursively
+        Notes
+        -----
+        massmap[0,:,:] corresponds to x-index 0
+        massmap[1,:,:] corresponds to x-index 1
+        massmap[2,:,:] corresponds to x-index 2
+        massmap[3,:,:] corresponds to x-index 3
+        """
 
-    return None
+        pixels = 2**level
 
+        # loop over the first four x index slices
+        # and fill the corresponding y,z mass maps
 
-def fill_massmap_from_octree(
-    root,
-    level,
-    massmap,
-):
-    """
-    Fill the four requested x-slices from the octree
+        for ix in range(4):
+            for iy in range(pixels):
+                for iz in range(pixels):
 
-    Parameters
-    ----------
-    root : Octree_Node
-        Root of the octree
-    level : int
-        Octree level to plot
-    massmap : ndarray
-        Mass map, shape (4, pixels, pixels)
+                    node = self.get_node_at_level(
+                        target_level=level,
+                        target_index=(ix, iy, iz),
+                    )
 
-    Notes
-    -----
-    massmap[0,:,:] corresponds to x-index 0
-    massmap[1,:,:] corresponds to x-index 1
-    massmap[2,:,:] corresponds to x-index 2
-    massmap[3,:,:] corresponds to x-index 3
-    """
+                    if node is not None:
+                        massmap[ix, iy, iz] = node.mass
 
-    pixels = 2**level
-
-    # loop over the first four x index slices
-    # and fill the corresponding y,z mass maps
-
-    for ix in range(4):
-        for iy in range(pixels):
-            for iz in range(pixels):
-
-                node = get_node_at_level(
-                    node=root,
-                    target_level=level,
-                    target_index=(ix, iy, iz),
-                )
-
-                if node is not None:
-                    massmap[ix, iy, iz] = node.mass
-
-    return
+        return
 
 
 def main() -> None:
@@ -213,26 +241,27 @@ def main() -> None:
     # Question 2a: using Barnes-Hut [note: not actually calculating a potential, unless you do the bonus question]
 
     # TO DO: build an octree
-
-    root = build_octree(
-        particle_positions=pos,
-        center_position=np.array([L / 2, L / 2, L / 2], dtype=np.float32),
-        index=(0, 0, 0),
-        box_size=L,
+    tree = Octree_Node(
+        np.array([L / 2, L / 2, L / 2], dtype=np.float32),
+        size=L,
         depth=0,
+        index=(0, 0, 0),
+        particles=np.arange(len(pos)),
+        all_particles=pos,
+    )
+    tree.build_octree(
         max_depth=7,
     )
     # Plotting the mass distribution for a slice
 
-    for level in [3, 5, 7]:  # feel free to change any of this code
+    for level in [1, 2, 3, 4, 5, 6, 7]:  # feel free to change any of this code
         pixels = 2**level
         massmap = np.zeros((4, pixels, pixels), dtype=np.float32)
         # TO DO: traverse the octree, fill map massmap[0,:,:] with the masses of nodes at depth 3 and x_index=x_0,
         #        massmap[1,:,:] with the masses of nodes at depth 3 and x_index=x_1, etc; then plot these slices;
         #        then do the same for levels 5 and 7
 
-        fill_massmap_from_octree(
-            root=root,
+        tree.fill_massmap_from_octree(
             level=level,
             massmap=massmap,
         )
@@ -274,8 +303,20 @@ def main() -> None:
     # Question 2b: using the FFT
 
     Ngrid = np.int64(128)
-    densgrid = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
-    potential = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
+    densgrid, edges = np.histogramdd(pos, bins=Ngrid)
+    # densgrid = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
+    # potential = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
+    rho_k = np.fft.fftn(densgrid)
+
+    kfreq = np.fft.fftfreq(Ngrid, d=L / Ngrid) * 2 * np.pi
+    kx, ky, kz = np.meshgrid(kfreq, kfreq, kfreq, indexing="ij")
+
+    k2 = kx**2 + ky**2 + kz**2
+
+    phi_k = rho_k / k2
+    phi_k[k2 == 0] = 0
+
+    potential = -G * np.fft.ifftn(phi_k).real / np.pi
     # TO DO: assign particle masses to densgrid, convert to density, and calculate potentials from it
 
     # Plotting four slices of a grid
