@@ -1,5 +1,6 @@
-True Positives: 474
-False Positives: 25
-True Negatives: 475
-False Negatives: 26
-F1 Score: 0.9489
+True Positives: 91
+True Positives: 91
+False Positives: 130
+True Negatives: 370
+False Negatives: 409
+F1 Score: 0.2524

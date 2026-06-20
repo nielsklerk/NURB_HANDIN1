@@ -81,18 +81,27 @@ def compute_accelerations(positions: np.ndarray, masses: np.ndarray) -> np.ndarr
     accelerations : ndarray
         Accelerations of all bodies, shape (N_bodies, 3)
     """
-
     def norm(x):
         return np.sqrt(np.sum(x**2, axis=1))[:, None]
 
     N_bodies = len(masses)
+
+    # Loop over bodies to calculate the acceleration
     acceleration = np.zeros((N_bodies, 3))
     for i in range(N_bodies):
+        # Find the difference in position between this body and the other bodies
         r = positions[i + 1 :] - positions[i]
+
+        # Find the force per mass
         norm_r = norm(r)
         force = -G * r / (norm_r**3)
+
+        # Add acceleration from all other bodies to this body
         acceleration[i] -= np.sum(masses[i + 1 :, None] * force, axis=0)
+
+        # Add acceleration from this body to all other bodies
         acceleration[i + 1 :] += force * masses[i]
+
     return acceleration
 
 
@@ -126,20 +135,36 @@ def leapfrog_integrator(
     velocities : ndarray
         Velocities at all time steps, shape (N_steps + 1, N_bodies, 3).
     """
+    def f(pos_vel):
+        return np.array([pos_vel[1], compute_accelerations(pos_vel[0], masses=masses)])
+
     positions = np.zeros((N_steps + 1, len(masses), 3))
     velocities = np.zeros((N_steps + 1, len(masses), 3))
+    half_velocties = np.zeros((N_steps + 1, len(masses), 3))
 
+    # Starting position
     positions[0] = positions_init
-    velocities[0] = velocities_init + 0.5 * dt * compute_accelerations(
-        positions_init, masses=masses
-    )
+    velocities[0] = velocities_init
+
+    # Perform kick using RK4 to find the first velocity value
+    current_position_velocity = np.array([positions_init, velocities_init])
+    k_1 = 0.5 * dt * f(current_position_velocity)
+    k_2 = 0.5 * dt * f(current_position_velocity + 0.5 * k_1)
+    k_3 = 0.5 * dt * f(current_position_velocity + 0.5 * k_2)
+    k_4 = 0.5 * dt * f(current_position_velocity + k_3)
+    current_position_velocity += (k_1 + 2 * k_2 + 2 * k_3 + k_4) / 6
+    _, half_velocties[0] = current_position_velocity
+
+    # Loop over the steps to update the next position and velocity
     for step in tqdm(range(N_steps)):
-        positions[step + 1] = positions[step] + dt * velocities[step]
-        velocities[step + 1] = velocities[step] + dt * compute_accelerations(
+        positions[step + 1] = positions[step] + dt * half_velocties[step]
+        change_velocity = dt * compute_accelerations(
             positions[step + 1], masses=masses
         )
+        half_velocties[step + 1] = half_velocties[step] + change_velocity
+        velocities[step + 1] = half_velocties[step] + 0.5 * change_velocity
 
-    return positions, np.zeros((N_steps + 1, len(masses), 3))
+    return positions, velocities
 
 
 def another_integrator(
@@ -172,22 +197,28 @@ def another_integrator(
     velocities : ndarray
         Velocities at all time steps, shape (N_steps + 1, N_bodies, 3)
     """
-
     def f(pos_vel):
         return np.array([pos_vel[1], compute_accelerations(pos_vel[0], masses=masses)])
 
     positions = np.zeros((N_steps + 1, len(masses), 3))
     velocities = np.zeros((N_steps + 1, len(masses), 3))
+
+    # Starting position and velocity
     positions[0] = positions_init
     velocities[0] = velocities_init
     current_position_velocity = np.array([positions_init, velocities_init])
+
+    # Loop over the steps to update the current position and velocity
     for step in tqdm(range(N_steps)):
         k_1 = dt * f(current_position_velocity)
         k_2 = dt * f(current_position_velocity + 0.5 * k_1)
         k_3 = dt * f(current_position_velocity + 0.5 * k_2)
         k_4 = dt * f(current_position_velocity + k_3)
         current_position_velocity += (k_1 + 2 * k_2 + 2 * k_3 + k_4) / 6
+
+        # Store the current position and velocity
         positions[step + 1], velocities[step + 1] = current_position_velocity
+    
     return positions, velocities
 
 
@@ -245,20 +276,15 @@ def plot_orbits_xy(
     output_dir : str
         Directory where plot is saved
     """
-
-    # For visibility, you may want to do two versions of this plot:
-    # one with all planets, and another zoomed in on the four inner planets
     x, y, z = positions.T
-    fig, ax = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
-    for i, obj in enumerate(body_names):
-        ax[0].plot(x[i, :], y[i, :], label=obj)
-        ax[1].plot(x[i, :], y[i, :], label=obj)
-    ax[0].set_aspect("equal", "box")
-    ax[0].set(xlabel="X [AU]", ylabel="Y [AU]")
-    ax[1].set_aspect("equal", "box")
-    ax[1].set(xlabel="X [AU]", ylabel="Y [AU]")
-    ax[1].set_xlim(-2, 2)
-    ax[1].set_ylim(-2, 2)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+    for ax in axes:
+        for i, obj in enumerate(body_names):
+            ax.plot(x[i, :], y[i, :], label=obj)
+        ax.set_aspect("equal", "box")
+        ax.set(xlabel="X [AU]", ylabel="Y [AU]")
+    axes[1].set_xlim(-2, 2)
+    axes[1].set_ylim(-2, 2)
     plt.legend(loc=(1.05, 0))
     plt.savefig(os.path.join(output_dir, filename), dpi=300)
     plt.close(fig)

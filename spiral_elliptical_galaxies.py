@@ -20,21 +20,143 @@ def load_and_prepare_data(filename):
         A value of 1 corresponds to spiral galaxies
         A value of 0 corresponds to elliptical galaxies
     """
+    # Loading the data
     data = np.loadtxt(filename)
+
+    # Splitting the data in features and labels
     features = data[:, :-1]
-    features = (features - np.mean(features, axis=0)) / np.std(features, axis=0)
     labels = data[:, -1]
+
+    # Apply standardization to the features
+    features = (features - np.mean(features, axis=0)) / np.std(features, axis=0)
+
     return features, labels
 
 
 # Make your own implementation of logistic regression
 def hypothesis(features, theta):
+    # Apply weights and bias
     z = theta[:-1] @ features.T + theta[-1]
+
+    # Return the result using sigmoid function
     return 1 / (1 + np.exp(-z))
+
+def downhillsimplex(function, points, n_iters=100):
+    def sort_array(
+                    arr: np.ndarray,
+                    inplace: bool = False,
+                    index = False
+                    ) -> np.ndarray:
+        """
+        Sort a 1D array using merge sort
+
+        Parameters
+        ----------
+        arr : ndarray
+            Input array to be sorted
+        inplace : bool, optional
+            If True, sort the array in-place
+            If False, return a sorted copy
+
+        Returns
+        -------
+        sorted_arr : ndarray
+            Sorted array (same shape as arr)
+
+        """
+        def roll(array, shift):
+            shifted_array = np.empty_like(array)
+            shifted_array[:shift] = array[-shift:]
+            shifted_array[shift:] = array[:-shift]
+            return shifted_array
+        
+        # Make an copy if not inplace
+        if inplace:
+            sorted_arr = arr
+        else:
+            sorted_arr = arr.copy()
+
+        N = len(sorted_arr)
+        step = 1
+        index_array = np.arange(N)
+
+        while step < N:
+            # Loop over pairs of subarrays
+            for i in range(0, N, step*2):
+                # Set pointers for 2 adjacent subarrays
+                l = i
+                r = min(i + step, N)
+                end = min(i + 2*step, N)
+
+                # Loop over the elements of both subarrays
+                while l < r and r < end:
+                    # If the left <=  the right, the left is in the correct place
+                    if sorted_arr[l] <= sorted_arr[r]:
+                        # increase left pointer
+                        l += 1
+
+                    # If the left > the right, the array is rolled to the correct order
+                    else:
+                        sorted_arr[l:r+1] = roll(sorted_arr[l:r+1], 1)
+                        index_array[l:r+1] = roll(index_array[l:r+1], 1)
+                        # Increase both pointers
+                        l += 1
+                        r += 1
+            # Double step size
+            step *= 2
+
+        if index:
+            return index_array
+        return sorted_arr
+
+    function_values = np.zeros(n_iters)
+    for i in range(n_iters):
+        new_point_added = False
+
+        # Sort the vertices
+        points = points[sort_array([function(point) for point in points], index=True)]
+
+        # Find the centroid
+        centroid = np.mean(points[:-1], axis=0)
+
+        f_0 = function(points[0])
+        f_N = function(points[-1])
+        function_values[i] = f_0
+        
+        # Reflect worst vertext
+        point_try = 2 * centroid - points[-1]
+        f_try = function(point_try)
+        if f_0 <= f_try and f_try < f_N:
+            points[-1] = point_try
+            new_point_added = True
+        elif f_try < f_0:
+            # Extend the reflected point
+            point_exp = 2 * point_try - centroid
+            if function(point_exp) < f_try:
+                points[-1] = point_exp
+                new_point_added = True
+            else:
+                points[-1] = point_try
+                new_point_added = True
+
+        else:
+            # Contract the worst vertex to the centroid
+            point_try = 0.5 * (centroid + points[-1])
+            if function(point_try) < f_N:
+                points[-1] = point_try
+                new_point_added = True
+        
+        if not new_point_added:
+            # Shrink all vertices to the best vertex
+            points[1:] = 0.5 * (points[0] + points[1:])
+    
+    # Sort the points of the last vertex and return the best point
+    points = points[sort_array([function(point) for point in points], index=True)]
+    return points[0], function_values
 
 
 def logistic_regression(
-    features, labels, feature_combinations, learning_rate=0.1, n_iterations=30
+    features, labels, feature_combinations, n_iterations=30
 ):
     """
     This function should select a chosen set
@@ -68,28 +190,33 @@ def logistic_regression(
         Best-fit parameters for each feature combination"""
 
     def loss_function(features, theta, y):
+        # Find the predicted percentages using the model
         h = hypothesis(features, theta)
-        return -np.sum(y * np.log(h) + (1 - y) * np.log(1 - h)) / len(y)
 
-    def loss_function_grad(features, theta, labels, l=0):
-        h = hypothesis(features, theta)
-        features_and_constant = np.vstack((features.T, np.ones(features.shape[0])))
-        return features_and_constant @ (h - labels) / len(labels) + 2 * l * np.sum(
-            theta
-        )
+        # Return logistic loss function
+        return -np.sum(y * np.log(h) + (1 - y) * np.log(1 - h)) / len(y)
 
     theta_values = []
     loss = np.zeros((n_iterations, len(feature_combinations)))
     for j, combination in enumerate(feature_combinations):
         feature_selection = features[:, [*combination]]
-        theta = np.ones(feature_selection.shape[1] + 1)
-        for i in range(n_iterations):
-            delta_theta = learning_rate * loss_function_grad(
-                feature_selection, theta, labels
-            )
-            theta -= delta_theta
-            loss[i, j] = loss_function(feature_selection, theta, labels)
+
+        # Creating the verteces for the starting simplex
+        point = np.ones(feature_selection.shape[1] + 1)
+        starting_points = [point]
+        for i in range(feature_selection.shape[1] + 1):
+            point[i] += 1
+            starting_points.append(point.copy())
+            point[i] -= 1
+        starting_points = np.array(starting_points)
+
+        # Using downhill simplex for minimization for the loss function
+        function_to_minimize = lambda x: loss_function(feature_selection, x, labels)
+        theta, loss[:, j] = downhillsimplex(function_to_minimize, starting_points, n_iters=n_iterations)
+
+        # Store the the best theta values for this combination
         theta_values.append(theta)
+
     return loss, theta_values
 
 
@@ -128,19 +255,25 @@ def test_logistic_regression(features, labels, theta, feature_columns, output_di
 
     f1_score : float
     """
+    # Find the predicted values
     predictions = np.round(hypothesis(features[:, feature_columns], theta))
+
+    # Find the number in the econfusion matrix
     true_positive = np.sum((predictions == 1) & (labels == 1))
     false_positive = np.sum((predictions == 1) & (labels == 0))
     true_negative = np.sum((predictions == 0) & (labels == 0))
     false_negative = np.sum((predictions == 0) & (labels == 1))
 
+    # Calculate precision and recall
     precision = true_positive / (true_positive + false_positive)
     recall = true_positive / (true_positive + false_negative)
 
+    # Use precision and recall to calculate the F1-score
     f1_score = 2 * precision * recall / (precision + recall)
 
     # save txt
     with open(os.path.join(output_dir, "logistic_regression_metrics.txt"), "w") as f:
+        f.write(f"True Positives: {true_positive}\n")
         f.write(f"True Positives: {true_positive}\n")
         f.write(f"False Positives: {false_positive}\n")
         f.write(f"True Negatives: {true_negative}\n")
@@ -183,8 +316,8 @@ def main() -> None:
     # Problem 3.b
     feature_combinations = [*itertools.combinations(np.arange(0, 4), 2)]
     cost_function, theta_values = logistic_regression(
-        features, labels, feature_combinations, n_iterations=100000, learning_rate=1e-3
-    )
+        features, labels, feature_combinations, n_iterations=100)
+    
     fig, ax = plt.subplots(1, 1, figsize=(10, 5), constrained_layout=True)
     for i, combination in enumerate(feature_combinations):
         label = f"Feature {combination[0]+1}"
@@ -214,22 +347,48 @@ def main() -> None:
         feature_columns=feature_combinations[0],
         output_dir=output_dir,
     )  # REPLACE with the parameters corresponding to the trained model using features 1 and 2; then repeat for the other feature combinations
+    for i in range(len(feature_combinations)):
+        (
+        predictions,
+        true_positive,
+        false_positive,
+        true_negative,
+        false_negative,
+        f1_score,
+        ) = test_logistic_regression(
+            features,
+            labels,
+            theta=theta_values[i],
+            feature_columns=feature_combinations[i],
+            output_dir=output_dir,
+        )
+        with open(os.path.join(output_dir, f"logistic_regression_metrics{i}.txt"), "w") as f:
+            f.write(f"{feature_combinations[i][0]}+{feature_combinations[i][1]} & {true_positive} & {false_positive} & {true_negative} & {false_negative} & {f1_score:.4f}")
+
     fig, ax = plt.subplots(3, 2, figsize=(10, 15))
     names = [r"$\kappa_{CO}$", "Color", "Extended", "Emission line flux"]
     plot_idx = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]]
     for i, comb in enumerate(itertools.combinations(np.arange(0, 4), 2)):
+        # Plot the features
         ax[plot_idx[i][0], plot_idx[i][1]].scatter(
             features[:, comb[0]], features[:, comb[1]], c=labels
         )
+        
+        # Store the x and y limits to use after plotting the decission boundary to use later
         xlim, ylim = (
             ax[plot_idx[i][0], plot_idx[i][1]].get_xlim(),
             ax[plot_idx[i][0], plot_idx[i][1]].get_ylim(),
         )
+        
+        # Extract theta for this combination
         theta = theta_values[i]
-        print(theta)
+
+        # Plot the decision boundary
         ax[plot_idx[i][0], plot_idx[i][1]].plot(
             xlim, -(theta[0] * np.array(xlim) + theta[-1]) / theta[1], "k--"
         )
+
+        # Set the labels and the limits
         ax[plot_idx[i][0], plot_idx[i][1]].set(
             xlabel=names[comb[0]], ylabel=names[comb[1]], xlim=xlim, ylim=ylim
         )
