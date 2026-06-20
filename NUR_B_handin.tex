@@ -8,7 +8,7 @@
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{float}
-\usepackage[hidelinks]{hyperref}
+\usepackage{hyperref}
 
 \usepackage{listings}
 \usepackage{xcolor}
@@ -37,9 +37,9 @@
 
 \newcommand{\PlotDir}{Plots}
 
-\title{NURa Hand-in 1}
-\author{Name (Student number)}
-\date{Date}
+\title{NURb Hand-in 1}
+\author{Niels de Klerk (s3640477)}
+\date{22-6-2026}
 
 \begin{document}
 \maketitle
@@ -53,65 +53,80 @@
 
 \section{Simulating the solar system}
 
-\subsection{(1a)}
-Make a plot showing the (x, y) positions and another showing the (x, z) positions for all the
-objects at the “current time” defined in the example.
+\subsection{(1a) }
+
+Using \textit{astropy}, we find the current positions and velocities of the 8 planets and the Sun. We plot the positions of the planets and the Sun in both the x-y plane and the x-z plane below.
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{\PlotDir/initial_positions.png}
     \caption{Initial positions of the objects in the solar system in the x-y and x-z planes.}
-    \end{figure}
-
+\end{figure}
 
 \subsection{(1b) }
 
-Show the orbits of all objects in the x - y plane
-in a suitable reference frame, as well as a plot of time versus position in the z plane. Explain
-whether leapfrog is a suitable choice of an algorithm, and why.
+We want to simulate the solar system 300 years in the future. For this, we will use the Leapfrog method as this is a symplectic integrator, which means that it approximately conserves the energy of a system, unlike methods such as Euler's method, RK4, etc. So, leapfrog is a good choice to simulate physical systems such as orbits. \textbf{EXPLAIN LEAPFROG} Leapfrog updates the position and velocity alternately. Before starting the leapfrog integrator, the velocity needs to be kicked by half a timestep. For this, we use RK4, which is explained further in 1c.
+Both the orbits in the x-y plane, as well as the z position over time, are shown below. 
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{\PlotDir/orbits_xy_leapfrog.png}
-\caption{Orbits of the objects in the x-y plane using the leapfrog integrator.}
+    \centering
+    \includegraphics[width=0.85\textwidth]{\PlotDir/orbits_xy_leapfrog.png}
+    \caption{Orbits of the objects in the x-y plane using the leapfrog integrator.}
 \end{figure}
+
+The orbits from the simulations look to be correct and nicely closed. The only thing that stands out is that the orbit of Mercury seems to be less stable than the other orbits. This is probably due to Mercury being close to the Sun, so the forces acting on this planet are stronger, and the orbit is more strongly curved than, for example, the orbit of Neptune. To resolve this problem, you would need to take smaller time steps to make the result more accurate.
  
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{\PlotDir/z_vs_time_leapfrog.png}
     \caption{Position in the z plane as a function of time for all objects using the leapfrog integrator.}
-    \end{figure}
- 
-    
+\end{figure}
+
+From the simulations, we also find that the z-position of the planets and the Sun, i.e., the height above the midplane, oscillates. This is expected as the planets follow elliptic orbits at an angle with the midplane, which results in these oscillations.  
+
 \subsection{(1c) }
 
 Explain the integration algorithm you used. What are the differences compared to the leapfrog method? 
 
 Make the same plots that you did in (b), as well as a plot of the difference in the bodies' x positions versus time between the leapfrog method and the other method. Discuss your results.
 
+We want to compare the results we got from the leapfrog method to a different integrator to see the difference between the two. We will use RK4 as this is a commonly used integrator. \textbf{EXPLAIN RK4}
+The results of the RK4 simulation are shown below. 
+
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{\PlotDir/orbits_xy_another_method.png}
-\caption{Orbits of the objects in the x-y plane using another integration method.}
+    \centering
+    \includegraphics[width=0.8\textwidth]{\PlotDir/orbits_xy_another_method.png}
+    \caption{Orbits of the objects in the x-y plane using another integration method.}
 \end{figure}
+
+The orbits from the simulations look to be correct and nicely closed. Contrary to the simulation from the leapfrog method, the orbit of Mercury seems to be a lot more stable in the RK4. This is probably due to the fact that RK4 is 4th-order accurate, whereas leapfrog is only 2nd-order. 
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/z_vs_time_another_method.png}
     \caption{Position in the z plane as a function of time for all objects using another integration method.}
-    \end{figure}
+\end{figure}
 
-    \begin{figure}[H]
-        \centering
-        \includegraphics[width=0.8\textwidth]{\PlotDir/x_difference_another_method_minus_leapfrog.png}
-        \caption{Difference in the x positions of the bodies as a function of time between the leapfrog method and another integration method.}
-        \end{figure}
+Again, the z-position of the objects oscillates through the midplane of the solar system. 
+
+To directly compare the 2 methods, we calculate the difference in the x-position between the 2 methods. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{\PlotDir/x_difference_another_method_minus_leapfrog.png}
+    \caption{Difference in the x positions of the bodies as a function of time between the leapfrog method and another integration method.}
+\end{figure}
+
+Here we see that the diffrerence between the method slowly increases over time. Notably, the differences seem to oscillate. 
+
+\subsection{(1d) }
+We have also made a video of the simulation. This can be found in the folder with all the plots. 
 
 \section{Calculating potentials in different ways}
 
-
 \subsection{(2a) }
 
-Describe how you construcred your octree.
+Describe how you constructed your octree.
 
 Plot the mass
 distribution for four slices at different depth levels, namely the first four slices in xi at levels 3,
@@ -123,18 +138,17 @@ distribution for four slices at different depth levels, namely the first four sl
     \caption{Mass distribution for the first four slices in xi at level 3 of the octree.}
     \end{figure}
 
-    \begin{figure}[H]
-        \centering
-        \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level5.png}
-        \caption{Mass distribution for the first four slices in xi at level 5 of the octree.}
-        \end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level5.png}
+    \caption{Mass distribution for the first four slices in xi at level 5 of the octree.}
+\end{figure}
     
-        \begin{figure}[H]
-            \centering
-            \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level7.png}
-            \caption{Mass distribution for the first four slices in xi at level 7 of the octree.}
-            \end{figure}
-        
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level7.png}
+    \caption{Mass distribution for the first four slices in xi at level 7 of the octree.}
+\end{figure}
 
 \subsection{(2b) }
 
@@ -146,7 +160,7 @@ Plot the results for different slices.
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig2b.png}
     \caption{Potential computed using the FFT method for different slices.}
-    \end{figure}
+\end{figure}
 
 
 Discuss the results.
@@ -160,14 +174,17 @@ Plot the distributions of the rescaled features, and save them to a text file; p
 for the first 10 objects in your report (do not hardcode them into the report, but show the first
 10 lines of the text file).
 
+We want to classify galaxies into 2 different groups: spiral and elliptical galaxies. For this, we use logistic regression for binary classification. Before we train the model, we feature-scale the data using standardization. 
+$$x\rightarrow \frac{x-\mu}{\sigma}$$
+The results of the standardization are shown in the figure below. 
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig3a.png}
     \caption{Distributions of the rescaled features for the spiral and elliptical galaxies.}
-    \end{figure}
+\end{figure}
 
-
-    \lstinputlisting[
+\lstinputlisting[
         firstline=1,
         lastline=11,
         basicstyle=\ttfamily\small,
@@ -184,7 +201,7 @@ Explain how you implemented logistic regression.
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig3b.png}
     \caption{Evolution of the cost function with the number of iterations for different pairs of features in the logistic regression model.}
-    \end{figure}
+\end{figure}
 
 
 \subsection{(3c) }
@@ -198,7 +215,7 @@ Plot the two features against each other and indicate the decision boundary and 
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig3c.png}
     \caption{Plot of the pairs of two features against each other with the decision boundary.}
-    \end{figure}
+\end{figure}
 
 
 \end{document}
