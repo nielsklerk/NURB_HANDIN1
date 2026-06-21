@@ -332,21 +332,8 @@ def main() -> None:
 
     # Problem 3.c
 
+    names = [r"$\kappa_{CO}$", "Color", "Extended", "Emission line flux"]
     # For every pair of features, plot the two features against each other and indicate the decision boundary
-    (
-        predictions,
-        true_positive,
-        false_positive,
-        true_negative,
-        false_negative,
-        f1_score,
-    ) = test_logistic_regression(
-        features,
-        labels,
-        theta=theta_values[0],
-        feature_columns=feature_combinations[0],
-        output_dir=output_dir,
-    )  # REPLACE with the parameters corresponding to the trained model using features 1 and 2; then repeat for the other feature combinations
     for i in range(len(feature_combinations)):
         (
         predictions,
@@ -363,10 +350,24 @@ def main() -> None:
             output_dir=output_dir,
         )
         with open(os.path.join(output_dir, f"logistic_regression_metrics{i}.txt"), "w") as f:
-            f.write(f"{feature_combinations[i][0]}+{feature_combinations[i][1]} & {true_positive} & {false_positive} & {true_negative} & {false_negative} & {f1_score:.4f}")
+            f.write(f"{names[feature_combinations[i][0]]}+{names[feature_combinations[i][1]]} & {true_positive} & {false_positive} & {true_negative} & {false_negative} & {f1_score:.4f}")
+
+    (
+        predictions,
+        true_positive,
+        false_positive,
+        true_negative,
+        false_negative,
+        f1_score,
+    ) = test_logistic_regression(
+        features,
+        labels,
+        theta=theta_values[0],
+        feature_columns=feature_combinations[0],
+        output_dir=output_dir,
+    )  # REPLACE with the parameters corresponding to the trained model using features 1 and 2; then repeat for the other feature combinations
 
     fig, ax = plt.subplots(3, 2, figsize=(10, 15))
-    names = [r"$\kappa_{CO}$", "Color", "Extended", "Emission line flux"]
     plot_idx = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]]
     for i, comb in enumerate(itertools.combinations(np.arange(0, 4), 2)):
         # Plot the features
