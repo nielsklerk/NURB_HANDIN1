@@ -90,22 +90,29 @@ class Octree_Node:
         node : Octree_Node
             Current octree node
         """
+        # Stop when the node is empty or a max depth is reached
         if (
             self.particles is None
             or len(self.particles) == 0
             or self.depth >= max_depth
         ):
             return
-        cx, cy, cz = self.center_position
+        
+        # Extract the positions of the particles in the cell
         idx = self.particles
         pos = self.all_particles[idx]
+
+        # Make masks for the location of the partcicles relative to the center
+        cx, cy, cz = self.center_position
         right = pos[:, 0] > cx
         top = pos[:, 1] > cy
         front = pos[:, 2] > cz
+
+        # Make placeholder children for the node
         self.children = np.empty((2, 2, 2), dtype=object)
 
+        # Split the node into 8 (2 per axis)
         ix, iy, iz = self.index
-
         for i in (0, 1):
             x_mask = right == i
             for j in (0, 1):
@@ -113,13 +120,16 @@ class Octree_Node:
                 for k in (0, 1):
                     z_mask = front == k
 
+                    # Masking the particles in this octant
                     mask = x_mask & y_mask & z_mask
                     child_particles = idx[mask]
 
+                    # Skip the empty octant
                     if len(child_particles) == 0:
                         self.children[i, j, k] = None
                         continue
-
+                    
+                    # Find the center of the octant
                     half = self.size / 2
                     child_center = self.center_position + np.array(
                         [
@@ -129,6 +139,7 @@ class Octree_Node:
                         ]
                     )
 
+                    # Create a child node
                     self.children[i, j, k] = Octree_Node(
                         child_center,
                         self.size / 2,
@@ -137,23 +148,27 @@ class Octree_Node:
                         child_particles,
                         self.all_particles,
                     )
+        
+        # Loop over the child nodes to build the octree
         for child in self.children.flatten():
             if child is not None:
                 child.build_octree(max_depth)
 
     def get_node_at_level(self, target_level, target_index):
         node = self
-
+        
+        # Loop over the levels
         for d in range(target_level):
             if node is None or node.children is None:
                 return None
 
+            # Bitshift target index and extract the last bit
             shift = target_level - d - 1
-
             i = (target_index[0] >> shift) & 1
             j = (target_index[1] >> shift) & 1
             k = (target_index[2] >> shift) & 1
 
+            # Go down into the corresponding node
             node = node.children[i, j, k]
 
         return node
@@ -188,16 +203,15 @@ class Octree_Node:
         for offset, ix in enumerate(range(len(massmap))):
             for iy in range(pixels):
                 for iz in range(pixels):
-
+                    # Finding the node corresponding to this pixel
                     node = self.get_node_at_level(
                         target_level=level,
                         target_index=(ix, iy, iz),
                     )
 
+                    # If the node exist set this pixel to the mass
                     if node is not None:
                         massmap[offset, iy, iz] = node.mass
-
-        return
 
 
 def fft(array):
@@ -320,28 +334,33 @@ def main() -> None:
 
     # Question 2b: using the FFT
 
+    # Making the density grid from the leaf nodes of the octree
     Ngrid = np.int64(128)
     densgrid = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
     tree.fill_massmap_from_octree(
-        level=level,
+        level=7,
         massmap=densgrid,
     )
+
+    # FFT of the density grid
     rho_k = fft_nd(densgrid)
-    freqs = (
-        np.concatenate([np.arange(0, Ngrid // 2), np.arange(-Ngrid // 2, 0)])
-        / L
-        * 2
-        * np.pi
-    )
+
+    # Calculate the corresponding frequencies
+    freqs = 2 * np.pi * np.concatenate([np.arange(0, Ngrid // 2), 
+                                        np.arange(-Ngrid // 2, 0)]) / L
     kx, ky, kz = np.meshgrid(freqs, freqs, freqs, indexing="ij")
 
+    # Using the frequencies to rescale the FT of the density grid
     k2 = kx**2 + ky**2 + kz**2
-
     phi_k = rho_k / k2
-    phi_k[k2 == 0] = 0
-    inverse_ft = ifft_nd(phi_k)
 
-    potential = -G * np.abs(inverse_ft) * np.sign(inverse_ft.real) / np.pi
+    # Setting the FT of the potential to 0 for the mode where k2 == 0 as the rescaling results in this mode going to infiniti
+    # Setting it to 0 can be done as the potential is defined up to a constant
+    phi_k[k2 == 0] = 0
+
+    # Finding the potential
+    phi = ifft_nd(phi_k)
+    potential = -G * np.abs(phi) * np.sign(phi.real) / np.pi
 
     # Plotting four slices of a grid
     fig, ax = plt.subplots(2, 2, figsize=(10, 8))
