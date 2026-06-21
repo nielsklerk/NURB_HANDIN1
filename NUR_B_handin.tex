@@ -65,7 +65,7 @@ Using \textit{astropy}, we find the current positions and velocities of the 8 pl
 
 \subsection{(1b) }
 
-We want to simulate the solar system 300 years in the future. For this, we will use the Leapfrog method as this is a symplectic integrator, which means that it approximately conserves the energy of a system, unlike methods such as Euler's method, RK4, etc. So, leapfrog is a good choice to simulate physical systems such as orbits. \textbf{EXPLAIN LEAPFROG} Leapfrog updates the position and velocity alternately. Before starting the leapfrog integrator, the velocity needs to be kicked by half a timestep. For this, we use RK4, which is explained further in 1c.
+We want to simulate the solar system 300 years in the future. For this, we will use the Leapfrog method as this is a symplectic integrator, which means that it approximately conserves the energy of a system, unlike methods such as Euler's method, RK4, etc. So, leapfrog is a good choice to simulate physical systems such as orbits. Leapfrog offsets the velocity and position in the steps in time. So it starts by 'kicking' the velocity half a timestep forward. Leapfrog updates the position and velocity alternately using the previous value of the other. Before starting the leapfrog integrator, the velocity needs to be kicked by half a timestep. For this, we use RK4, which is explained further in 1c.
 Both the orbits in the x-y plane, as well as the z position over time, are shown below. 
 
 \begin{figure}[H]
@@ -170,12 +170,9 @@ Discuss the results.
 
 \subsection{(3a) }
 
-Plot the distributions of the rescaled features, and save them to a text file; print the features
-for the first 10 objects in your report (do not hardcode them into the report, but show the first
-10 lines of the text file).
-
 We want to classify galaxies into 2 different groups: spiral and elliptical galaxies. For this, we use logistic regression for binary classification. Before we train the model, we feature-scale the data using standardization. 
-$$x\rightarrow \frac{x-\mu}{\sigma}$$
+$$x\rightarrow \frac{x-\mu}{\sigma},$$
+where $\mu$ is the mean of the values and $\sigma$ the standard deviation of the values.
 The results of the standardization are shown in the figure below. 
 
 \begin{figure}[H]
@@ -194,8 +191,17 @@ The results of the standardization are shown in the figure below.
 \subsection{(3b) }
 
 Explain how you implemented logistic regression. 
- Plot the evolution of your cost function with the number of iterations for different pairs of features.
- Explain how does it change depending on the feature pair.
+Plot the evolution of your cost function with the number of iterations for different pairs of features.
+Explain how does it change depending on the feature pair.
+
+To apply the logistic regression we use an linear model that performs a weight sum of the features and adds a bias to the result.
+$$z= \textbf{$\theta$}^T\textbf{x}+\beta,$$
+where $\textbf{$\theta$}$ are the weight, $\textbf{x}$ the features and $\beta$ the bias.
+The result is then put through the sigmoid activation function 
+$$\hat{y}=\frac{1}{1+\exp z},$$
+where $\hat{y}$ is used as the prediction. To improve the model, we want to use the logistic loss function 
+$$J = -\frac{1}{m}\sum_{i=0}^{m-1}y_i\ln{\hat{y}_i}+(1-y_i)\ln{(1-\hat{y}_i)}$$
+Downhill simplex is used to minimize the loss function and the resulting evolution of the loss function for each step is plotted below.
 
 \begin{figure}[H]
     \centering
@@ -203,14 +209,14 @@ Explain how you implemented logistic regression.
     \caption{Evolution of the cost function with the number of iterations for different pairs of features in the logistic regression model.}
 \end{figure}
 
+Here we see that depending on the combination of features used the loss levels off at different values. So from this we see that the feature combination 1+2 ($\kappa_\mathrm{CO}$ + Color) gives a much better split than for example feature combination 3+4 (Extended+Emission line flux). 
 
 \subsection{(3c) }
 
 Print the values of true/false positives/negatives, as well as the F1 score.
-\lstinputlisting[language=Python]{\PlotDir/logistic_regression_metrics.txt}
 \begin{table}[H]
 \centering
-\caption{Equilibrium temperature for different gas densities.}
+\caption{The true/false positive/negative results and the F1-score for the different feature combinations}
 \begin{tabular}{|c|c|c|c|c|c|}
 \hline
 Feature Combination & TP & FN & TN & FN & F1-score \\
