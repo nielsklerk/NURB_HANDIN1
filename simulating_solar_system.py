@@ -550,7 +550,7 @@ def main() -> None:
         times=times,
         body_names=body_names,
         output_dir="Plots",
-        frame_interval=200,
+        frame_interval=500,
         movie_name="solar_system_movie.mp4",
         fps=30,
     )

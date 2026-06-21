@@ -56,12 +56,12 @@ class Octree_Node:
         self.all_particles = all_particles
         self.children = children
 
-        if particles is None:
+        if self.particles is None or len(self.particles) == 0:
             self.mass = np.float32(0.0)
             self.CoM = center_position
         else:
-            self.mass = np.float32(len(particles)) * mp
-            self.CoM = np.mean(all_particles[particles], axis=0)
+            self.mass = np.float32(len(self.particles)) * mp
+            self.CoM = np.mean(self.all_particles[self.particles], axis=0)
 
     def build_octree(
         self,
@@ -96,91 +96,65 @@ class Octree_Node:
             or self.depth >= max_depth
         ):
             return
-        if len(self.particles) <= 1:
-            return
         cx, cy, cz = self.center_position
-        pos = self.all_particles[self.particles]
-        right = pos[:, 0] >= cx
-        top = pos[:, 1] >= cy
-        front = pos[:, 2] >= cz
+        idx = self.particles
+        pos = self.all_particles[idx]
+        right = pos[:, 0] > cx
+        top = pos[:, 1] > cy
+        front = pos[:, 2] > cz
         self.children = np.empty((2, 2, 2), dtype=object)
+
         ix, iy, iz = self.index
-        for i in range(2):
-            for j in range(2):
-                for k in range(2):
-                    mask = (right == i) & (top == j) & (front == k)
-                    child_particles = self.particles[mask]
-                    child_center = self.center_position + (
-                        np.array([i, j, k], dtype=np.float32) - 0.5
-                    ) * (self.size / 2)
+
+        for i in (0, 1):
+            x_mask = right == i
+            for j in (0, 1):
+                y_mask = top == j
+                for k in (0, 1):
+                    z_mask = front == k
+
+                    mask = x_mask & y_mask & z_mask
+                    child_particles = idx[mask]
+
+                    if len(child_particles) == 0:
+                        self.children[i, j, k] = None
+                        continue
+
+                    half = self.size / 2
+                    child_center = self.center_position + np.array(
+                        [
+                            (i - 0.5) * half,
+                            (j - 0.5) * half,
+                            (k - 0.5) * half,
+                        ]
+                    )
+
                     self.children[i, j, k] = Octree_Node(
                         child_center,
-                        size=self.size / 2,
-                        depth=self.depth + 1,
-                        index=(2 * ix + i, 2 * iy + j, 2 * iz + k),
-                        particles=child_particles,
-                        all_particles=self.all_particles,
+                        self.size / 2,
+                        self.depth + 1,
+                        (2 * ix + i, 2 * iy + j, 2 * iz + k),
+                        child_particles,
+                        self.all_particles,
                     )
         for child in self.children.flatten():
-            child.build_octree(max_depth)
-        # If node contains no particles
-        # mass should be zero, CoM can be set equal to center_position
-        # and children should be None
+            if child is not None:
+                child.build_octree(max_depth)
 
-        # if this is a leaf node, return the node without children
-
-        # compute depth, index, mass, CoM, and children
-        # For the bonus question, store the particle indices
-
-        # split the node into 8 child nodes
-        # Each child has half the side length of the parent
-        #  compute the child index
-        # If the parent index is (ix, iy, iz), then the child index is
-        # (2*ix + offest_x, 2*iy + offest_y, 2*iz + offest_z)
-
-        #  select particles that lie inside this child node
-
-        # recursively call build on this child
-
-    def get_node_at_level(
-        self,
-        target_level,
-        target_index,
-    ):
-        """
-        Traverse the octree and return a node at a given level and index
-
-        Parameters
-        ----------
-        node : Octree_Node
-            Current node
-        target_level : int
-            Level to reach
-        target_index : tuple
-            Index of the target node at target_level, (ix, iy, iz)
-
-        Returns
-        -------
-        node : Octree_Node or None
-            Node at the requested level and index
-        """
+    def get_node_at_level(self, target_level, target_index):
         node = self
 
-        while node.depth < target_level:
-            ox = target_index[0] & 1
-            oy = target_index[1] & 1
-            oz = target_index[2] & 1
-
-            if node.children is None:
+        for d in range(target_level):
+            if node is None or node.children is None:
                 return None
 
-            node = node.children[ox, oy, oz]
+            shift = target_level - d - 1
 
-            target_index = (
-                target_index[0] >> 1,
-                target_index[1] >> 1,
-                target_index[2] >> 1,
-            )
+            i = (target_index[0] >> shift) & 1
+            j = (target_index[1] >> shift) & 1
+            k = (target_index[2] >> shift) & 1
+
+            node = node.children[i, j, k]
 
         return node
 
@@ -211,10 +185,7 @@ class Octree_Node:
 
         pixels = 2**level
 
-        # loop over the first four x index slices
-        # and fill the corresponding y,z mass maps
-
-        for ix in range(4):
+        for offset, ix in enumerate(range(len(massmap))):
             for iy in range(pixels):
                 for iz in range(pixels):
 
@@ -224,9 +195,60 @@ class Octree_Node:
                     )
 
                     if node is not None:
-                        massmap[ix, iy, iz] = node.mass
+                        massmap[offset, iy, iz] = node.mass
 
         return
+
+
+def fft(array):
+    # Casting the array to complex
+    array = array.astype(np.complex64)
+
+    # Length of the array and the corresponding number of bit
+    N = len(array)
+    N_bits = int(np.log2(N))
+
+    # Reversing the bits to reindex the array
+    idx = np.array([int(f"{i:0{N_bits}b}"[::-1], 2) for i in np.arange(N)])
+    array = array[idx]
+
+    # Performing the FFT
+    N_j = 2
+    two_pi_i = 2j * np.pi
+    while N_j <= N:
+        half = N_j // 2
+        n = np.arange(0, N, N_j)
+        k = np.arange(0, half)
+        m = n[:, None] + k
+        w = np.exp(two_pi_i * k / N_j)
+        t = array[m].copy()
+        v = w * array[(m + half)]
+        array[m] += v
+        array[(m + half)] = t - v
+        N_j *= 2
+
+    return array
+
+
+def ifft(array):
+    # Using the FFT to IFFT
+    return fft(array.conj()).conj() / len(array)
+
+
+def fft_nd(A):
+    # Casting the array to complex
+    A = A.astype(np.complex64)
+    for axis in range(A.ndim):
+        A = np.apply_along_axis(fft, axis, A)
+    return A
+
+
+def ifft_nd(A):
+    # Casting the array to complex
+    A = A.astype(np.complex64)
+    for axis in range(A.ndim):
+        A = np.apply_along_axis(ifft, axis, A)
+    return A
 
 
 def main() -> None:
@@ -240,7 +262,6 @@ def main() -> None:
         # vel=handle["Velocity"][...] #particle velocities, shape (Np,3), comoving <-- not used, but if you're interested
     # Question 2a: using Barnes-Hut [note: not actually calculating a potential, unless you do the bonus question]
 
-    # TO DO: build an octree
     tree = Octree_Node(
         np.array([L / 2, L / 2, L / 2], dtype=np.float32),
         size=L,
@@ -254,12 +275,9 @@ def main() -> None:
     )
     # Plotting the mass distribution for a slice
 
-    for level in [1, 2, 3, 4, 5, 6, 7]:  # feel free to change any of this code
+    for level in [3, 5, 7]:  # feel free to change any of this code
         pixels = 2**level
         massmap = np.zeros((4, pixels, pixels), dtype=np.float32)
-        # TO DO: traverse the octree, fill map massmap[0,:,:] with the masses of nodes at depth 3 and x_index=x_0,
-        #        massmap[1,:,:] with the masses of nodes at depth 3 and x_index=x_1, etc; then plot these slices;
-        #        then do the same for levels 5 and 7
 
         tree.fill_massmap_from_octree(
             level=level,
@@ -303,36 +321,42 @@ def main() -> None:
     # Question 2b: using the FFT
 
     Ngrid = np.int64(128)
-    densgrid, edges = np.histogramdd(pos, bins=Ngrid)
-    # densgrid = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
-    # potential = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
-    rho_k = np.fft.fftn(densgrid)
-
-    kfreq = np.fft.fftfreq(Ngrid, d=L / Ngrid) * 2 * np.pi
-    kx, ky, kz = np.meshgrid(kfreq, kfreq, kfreq, indexing="ij")
+    densgrid = np.zeros((Ngrid, Ngrid, Ngrid), dtype=np.float32)
+    tree.fill_massmap_from_octree(
+        level=level,
+        massmap=densgrid,
+    )
+    rho_k = fft_nd(densgrid)
+    freqs = (
+        np.concatenate([np.arange(0, Ngrid // 2), np.arange(-Ngrid // 2, 0)])
+        / L
+        * 2
+        * np.pi
+    )
+    kx, ky, kz = np.meshgrid(freqs, freqs, freqs, indexing="ij")
 
     k2 = kx**2 + ky**2 + kz**2
 
     phi_k = rho_k / k2
     phi_k[k2 == 0] = 0
+    inverse_ft = ifft_nd(phi_k)
 
-    potential = -G * np.fft.ifftn(phi_k).real / np.pi
-    # TO DO: assign particle masses to densgrid, convert to density, and calculate potentials from it
+    potential = -G * np.abs(inverse_ft) * np.sign(inverse_ft.real) / np.pi
 
     # Plotting four slices of a grid
-
     fig, ax = plt.subplots(2, 2, figsize=(10, 8))
-    pcm = ax[0, 0].pcolormesh(np.arange(Ngrid), np.arange(Ngrid), potential[0, :, :])
-    # ax[0,0].set(ylabel='...', title='...')
+    grid_points = np.arange(Ngrid) / Ngrid * L
+    pcm = ax[0, 0].pcolormesh(grid_points, grid_points, potential[0, :, :])
+    ax[0, 0].set(ylabel="z [cMpc]", title=r"Slice x$_0$")
     fig.colorbar(pcm, ax=ax[0, 0], label="Potential")
-    pcm = ax[0, 1].pcolormesh(np.arange(Ngrid), np.arange(Ngrid), potential[16, :, :])
-    # ax[0,1].set(title='...')
+    pcm = ax[0, 1].pcolormesh(grid_points, grid_points, potential[16, :, :])
+    ax[0, 1].set(title=r"Slice x$_{16}$")
     fig.colorbar(pcm, ax=ax[0, 1], label="Potential")
-    pcm = ax[1, 0].pcolormesh(np.arange(Ngrid), np.arange(Ngrid), potential[32, :, :])
-    # ax[1,0].set(ylabel='...', xlabel='...', title='...')
+    pcm = ax[1, 0].pcolormesh(grid_points, grid_points, potential[32, :, :])
+    ax[1, 0].set(ylabel="z [cMpc]", xlabel="y [cMpc]", title=r"Slice x$_{32}$")
     fig.colorbar(pcm, ax=ax[1, 0], label="Potential")
-    pcm = ax[1, 1].pcolormesh(np.arange(Ngrid), np.arange(Ngrid), potential[64, :, :])
-    # ax[1,1].set(xlabel='...', title='...')
+    pcm = ax[1, 1].pcolormesh(grid_points, grid_points, potential[64, :, :])
+    ax[1, 1].set(xlabel="y [cMpc]", title=r"Slice x$_{64}$")
     fig.colorbar(pcm, ax=ax[1, 1], label="Potential")
     ax[0, 0].set_aspect("equal", "box")
     ax[0, 1].set_aspect("equal", "box")
