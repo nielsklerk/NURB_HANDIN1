@@ -65,7 +65,13 @@ Using \textit{astropy}, we find the current positions and velocities of the 8 pl
 
 \subsection{(1b) }
 
-We want to simulate the solar system 300 years in the future. For this, we will use the Leapfrog method as this is a symplectic integrator, which means that it approximately conserves the energy of a system, unlike methods such as Euler's method, RK4, etc. So, leapfrog is a good choice to simulate physical systems such as orbits. Leapfrog offsets the velocity and position in the steps in time. So it starts by 'kicking' the velocity half a timestep forward. Leapfrog updates the position and velocity alternately using the previous value of the other. Before starting the leapfrog integrator, the velocity needs to be kicked by half a timestep. For this, we use RK4, which is explained further in 1c.
+We want to simulate the solar system 300 years in the future. For this, we will use the Leapfrog method as this is a symplectic integrator, which means that it approximately conserves the energy of a system, unlike methods such as Euler's method, RK4, etc. So, leapfrog is a good choice to simulate physical systems such as orbits. Leapfrog offsets the velocity and position in the steps in time. It starts by 'kicking' the velocity half a timestep forward. 
+$$v_{i+1/2}=v_i+0.5dt*a_i$$
+Leapfrog updates the position and velocity alternately using the previous value of the other.
+$$v_{i+1/2}=v_{i-1/2}+dt*a_i$$
+$$x_{i+1}=x_{i}+dt*v_{i+1/2}$$
+This is repeated until the desired time/ number of steps is reached.
+For the kick, we use RK4, which is explained further in 1c.
 Both the orbits in the x-y plane, as well as the z position over time, are shown below. 
 
 \begin{figure}[H]
@@ -74,7 +80,7 @@ Both the orbits in the x-y plane, as well as the z position over time, are shown
     \caption{Orbits of the objects in the x-y plane using the leapfrog integrator.}
 \end{figure}
 
-The orbits from the simulations look to be correct and nicely closed. The only thing that stands out is that the orbit of Mercury seems to be less stable than the other orbits. This is probably due to Mercury being close to the Sun, so the forces acting on this planet are stronger, and the orbit is more strongly curved than, for example, the orbit of Neptune. To resolve this problem, you would need to take smaller time steps to make the result more accurate.
+The orbits from the simulations look to be correct and nicely closed. The only thing that stands out is that the orbit of Mercury seems to be less stable than the other orbits. This is probably due to Mercury being close to the Sun, so the forces acting on this planet are stronger. Furthermore, the orbit is more strongly curved than, for example, the orbit of Neptune. To resolve this problem, you would need to take smaller time steps to make the result more accurate.
  
 \begin{figure}[H]
     \centering
@@ -90,7 +96,25 @@ Explain the integration algorithm you used. What are the differences compared to
 
 Make the same plots that you did in (b), as well as a plot of the difference in the bodies' x positions versus time between the leapfrog method and the other method. Discuss your results.
 
-We want to compare the results we got from the leapfrog method to a different integrator to see the difference between the two. We will use RK4 as this is a commonly used integrator. \textbf{EXPLAIN RK4}
+We want to compare the results we got from the leapfrog method to a different integrator to see the difference between the two. We will use RK4 as this is a commonly used integrator. In the case of the orbit, we use 
+$$\textbf{y}=\begin{pmatrix}
+\textbf{x} \\
+\textbf{v}
+\end{pmatrix}, f(\textbf{x}, \textbf{v})=\begin{pmatrix}
+\textbf{v} \\
+\textbf{a}(\textbf{x})
+\end{pmatrix}$$
+where $\textbf{a}(\textbf{x)}$ is the acceleration at $\textbf{x}$ due to all the other objects. 
+so we can write the equations of motion as 
+$$\frac{\mathrm{d}\textbf{y}}{\mathrm{dt}} = f(\textbf{x}, \textbf{v})$$
+$\textbf{y}$ is then updated using RK4 be taking a weighted sum of the function at 4 points following 
+$$k_1 = \mathrm{dt} * f(\textbf{y}_i)$$
+$$k_2 = \mathrm{dt} * f(\textbf{y}_i+\frac{1}{2}k_1)$$
+$$k_3 = \mathrm{dt} * f(\textbf{y}_i+\frac{1}{2}k_2)$$
+$$k_4 = \mathrm{dt} * f(\textbf{y}_i+k_3)$$
+The new position and velocity is then given by
+$$\textbf{y}_{i+1} = \textbf{y}_i + (k_1 +2k_2 + 2k_3 + k_4)/6$$
+
 The results of the RK4 simulation are shown below. 
 
 \begin{figure}[H]
@@ -107,7 +131,7 @@ The orbits from the simulations look to be correct and nicely closed. Contrary t
     \caption{Position in the z plane as a function of time for all objects using another integration method.}
 \end{figure}
 
-Again, the z-position of the objects oscillates through the midplane of the solar system. 
+Again, the z-position of the objects oscillates through the midplane of the solar system. However, there is no visual difference between these results and the results derived from the leapfrog method.
 
 To directly compare the 2 methods, we calculate the difference in the x-position between the 2 methods. 
 
@@ -117,7 +141,7 @@ To directly compare the 2 methods, we calculate the difference in the x-position
     \caption{Difference in the x positions of the bodies as a function of time between the leapfrog method and another integration method.}
 \end{figure}
 
-Here we see that the diffrerence between the method slowly increases over time. Notably, the differences seem to oscillate. 
+Here we see that the difference between the methods slowly increases over time. Notably, the differences seem to oscillate. 
 
 \subsection{(1d) }
 We have also made a video of the simulation. This can be found in the folder with all the plots. 
@@ -201,7 +225,7 @@ The result is then put through the sigmoid activation function
 $$\hat{y}=\frac{1}{1+\exp z},$$
 where $\hat{y}$ is used as the prediction. To improve the model, we want to use the logistic loss function 
 $$J = -\frac{1}{m}\sum_{i=0}^{m-1}y_i\ln{\hat{y}_i}+(1-y_i)\ln{(1-\hat{y}_i)}$$
-Downhill simplex is used to minimize the loss function and the resulting evolution of the loss function for each step is plotted below.
+Downhill simplex is used to minimize the loss function, and the resulting evolution of the loss function for each step is plotted below.
 
 \begin{figure}[H]
     \centering
@@ -209,11 +233,11 @@ Downhill simplex is used to minimize the loss function and the resulting evoluti
     \caption{Evolution of the cost function with the number of iterations for different pairs of features in the logistic regression model.}
 \end{figure}
 
-Here we see that depending on the combination of features used the loss levels off at different values. So from this we see that the feature combination 1+2 ($\kappa_\mathrm{CO}$ + Color) gives a much better split than for example feature combination 3+4 (Extended+Emission line flux). 
+Here we see that, depending on the combination of features used, the loss levels off at different values. So from this we see that the feature combination 1+2 ($\kappa_\mathrm{CO}$ + Color) gives a much better split than, for example, feature combination 3+4 (Extended+Emission line flux). 
 
 \subsection{(3c) }
 
-Print the values of true/false positives/negatives, as well as the F1 score.
+Building the confusion matrix for the different features combinations gives
 \begin{table}[H]
 \centering
 \caption{The true/false positive/negative results and the F1-score for the different feature combinations}
@@ -231,7 +255,7 @@ Feature Combination & TP & FN & TN & FN & F1-score \\
 \end{tabular}   
 \end{table}
 
-Plot the two features against each other and indicate the decision boundary and discuss your results.
+Plot the two features against each other and indicate the decision boundary, and discuss your results.
 
 \begin{figure}[H]
     \centering
