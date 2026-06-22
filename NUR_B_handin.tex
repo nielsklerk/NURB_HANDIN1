@@ -44,13 +44,6 @@
 \begin{document}
 \maketitle
 
-\textit{Write a short description of your solution in each section. Explain your choices. Draw the conclusions from your results.}
-
-\textit{You can refer to selected lines of code where you think it is necessary. Make sure the line numbers you reference are after ``black'' has been run on your files.}
-
-\textit{Don't forget to describe your figures and mention what conclusions you draw from them!}
-
-
 \section{Simulating the solar system}
 
 \subsection{(1a) }
@@ -71,7 +64,9 @@ Leapfrog updates the position and velocity alternately using the previous value 
 $$v_{i+1/2}=v_{i-1/2}+dt*a_i$$
 $$x_{i+1}=x_{i}+dt*v_{i+1/2}$$
 This is repeated until the desired time/ number of steps is reached.
-For the kick, we use RK4, which is explained further in 1c.
+For the kick, we use RK4, which is explained further in 1c. For the calculation of the acceleration, the equation 
+$$\textbf{f} = -G * \textbf{r} / (|r|^3)$$
+is used, which gives the mass-normalized force. We loop over the bodies, and we calculate this force from this body to all the next ones. Then the acceleration due to all the next bodies is added to the total acceleration of this body by multiplying $\textbf{f}$ with the corresponding mass, and the acceleration due to this body is added to all the next bodies' acceleration. This is repeated for all bodies, only with respect to the next bodies in the list, so as not to double-count any force.
 Both the orbits in the x-y plane, as well as the z position over time, are shown below. 
 
 \begin{figure}[H]
@@ -150,45 +145,54 @@ We have also made a video of the simulation. This can be found in the folder wit
 
 \subsection{(2a) }
 
-Describe how you constructed your octree.
+We have a box of size 250 Mpc with 256$^3$ particles. We want to construct an octree to partition these particles into nodes. The construction of the tree starts with the root node that contains all of the particles with index (0,0,0). Next, we split each direction into 2, resulting in 8 octants. For each octant, particles are assigned to it, and the total mass and center of mass are calculated. To keep track of the nodes, they are indexed by using the index of the parent node (x$_i$, y$_i$, z$_i$) and give this node the index (2x$_i$+x$_\mathrm{offset}$, 2y$_i$+y$_\mathrm{offset}$, 2z$_i$+z$_\mathrm{offset}$), where x$_\mathrm{offset}$ is 0 if the node is left of the center of the parent node and 1 otherwise, similarly for the other 2 axes. When looking at the binary representation of the index, for example, in the x-axis, this gives a series of left/right steps in the x-axis that correspond to the node. The splitting of the nodes is repeated until a node is empty or a maximum depth is reached. 
 
-Plot the mass
-distribution for four slices at different depth levels, namely the first four slices in xi at levels 3,
-5 and 7.
+Using the indices of the nodes, we can directly find the mass in certain regions in the box. Using this, we plot different slices at levels 2, 5, and 7.  
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level3.png}
     \caption{Mass distribution for the first four slices in xi at level 3 of the octree.}
-    \end{figure}
+\end{figure}
+
+In the slices at level 3, there is little to no structure visible, as this resolution is too low to resolve any. 
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level5.png}
     \caption{Mass distribution for the first four slices in xi at level 5 of the octree.}
 \end{figure}
-    
+
+In the slices at level 5, there is a little more structure than for the previous slices, but the structure is still not very clear.
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig2a_level7.png}
     \caption{Mass distribution for the first four slices in xi at level 7 of the octree.}
 \end{figure}
 
+In the slices at level 7, the filamentary structure of the dark matter is now visible.
+
 \subsection{(2b) }
-
-Describe how you computed the potential and implemented fft.
-
-Plot the results for different slices.
-            
+We can calculate the potential that the particles create by using
+$$\Phi=-\frac{G}{\pi}\mathrm{iFT}[\mathrm{FT}[\rho]/k^2]$$
+So we need the Fourier Transform (FT) to find the potential. 
+For the FT, we use the Cooley-Tukey algorithm. 
+First, we use bit reversal to swap the elements in the array. Next, we combine the elements using different complex weights until we recover the FT of the array.
+The inverse FT can be found using the FT
+$$\mathrm{iFT}[f]=\frac{\mathrm{FT}(f^*)^*}{m},$$
+where $^*$ denotes conjugation and $m$ is the number of points in $f$.
+To apply both the FT and iFT in 3 dimensions, the FT/iFT is applied along each dimension in sequence.
+To find $\rho$, we use the bottom level of the octree, which subdivides the space into a 128$^3$ grid of points. So the mass of each node is assigned to the grid points, which gives a density grid. Next, we find the wavenumber of the different modes in Fourier space. and divide the FT of the density grid by 
+$$k^2=k_x^2+k_y^2+k_z^2.$$
+This result holds for all grid points except at the point where the wavenumber in each direction is 0, which would divide the FT of the density field by 0. However, we can just set this mode to 0, as the potential is defined up to a scalar, which gives the freedom to choose this one mode. Next, we apply the iFT to the rescaled modes and multiply the result by $-\frac{G}{\pi}$, which gives the potential. 4 slices of the potential are shown below.
+  
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{\PlotDir/fig2b.png}
     \caption{Potential computed using the FFT method for different slices.}
 \end{figure}
 
-
-Discuss the results.
-
+The potential is much smoother than the filamentary structure of the dark matter.
 
 \section{Spiral and elliptical galaxies}
 
@@ -205,6 +209,7 @@ The results of the standardization are shown in the figure below.
     \caption{Distributions of the rescaled features for the spiral and elliptical galaxies.}
 \end{figure}
 
+In the distributions, we see that the extended feature and the emission line flux are sharply peaked. This is because there are a small number of points that are much further away from the mean, which increases the variance and thus makes the rescaled feature more sharply peaked.
 \lstinputlisting[
         firstline=1,
         lastline=11,
@@ -223,9 +228,9 @@ $$z= \textbf{$\theta$}^T\textbf{x}+\beta,$$
 where $\textbf{$\theta$}$ are the weight, $\textbf{x}$ the features and $\beta$ the bias.
 The result is then put through the sigmoid activation function 
 $$\hat{y}=\frac{1}{1+\exp z},$$
-where $\hat{y}$ is used as the prediction. To improve the model, we want to use the logistic loss function 
+where $\hat{y}$ is used as the prediction. To improve the model, we want to minimize the logistic loss function 
 $$J = -\frac{1}{m}\sum_{i=0}^{m-1}y_i\ln{\hat{y}_i}+(1-y_i)\ln{(1-\hat{y}_i)}$$
-Downhill simplex is used to minimize the loss function, and the resulting evolution of the loss function for each step is plotted below.
+Downhill simplex is used to minimize the loss function, and the resulting evolution of the loss for each iteration is plotted below.
 
 \begin{figure}[H]
     \centering
@@ -254,14 +259,13 @@ Feature Combination & TP & FN & TN & FN & F1-score \\
 \hline
 \end{tabular}   
 \end{table}
-
-Plot the two features against each other and indicate the decision boundary, and discuss your results.
-
+And plotting the different feature  combinations with the decision boundary gives
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{\PlotDir/fig3c.png}
+    \includegraphics[width=0.7\textwidth]{\PlotDir/fig3c.png}
     \caption{Plot of the pairs of two features against each other with the decision boundary.}
 \end{figure}
+From both the table and the figure, $\kappa_\mathrm{CO}$ + Color gives the best split, because $\kappa_\mathrm{CO}$ itself splits the data good into spiral and galaxy type. Again, the emission line flux and extended combination give the worst results. Visually, this can be explained by the fact that the elliptical galaxies span across this entire range, while the spiral galaxies are more centered. So a linear model would not give the best results.
 
 
 \end{document}
